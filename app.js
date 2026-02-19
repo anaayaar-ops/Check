@@ -5,8 +5,8 @@ const { WOLF } = wolfjs;
 const service = new WOLF();
 
 // --- الإعدادات ---
-const TARGET_GROUP = 9969; 
-const TARGET_DATE = "2026-02-20"; // التاريخ المستهدف للبحث
+const TARGET_GROUP = 18432094; 
+const TARGET_DATE = "2026-02-21"; // التاريخ المستهدف للبحث
 // ----------------
 
 service.on('ready', async () => {
@@ -85,3 +85,4 @@ service.on('ready', async () => {
 });
 
 service.login(process.env.U_MAIL, process.env.U_PASS);
+
