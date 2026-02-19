@@ -5,12 +5,13 @@ const { WOLF } = wolfjs;
 const service = new WOLF();
 
 // --- الإعدادات ---
-const TARGET_GROUP = 18432094;
+const TARGET_GROUP = 9969;
 const TARGET_DATE = "2026-02-20"; 
 // ----------------
 
-const formatAMPM = (dateStr) => {
-    const date = new Date(dateStr);
+const formatAMPM = (dateInput) => {
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return "وقت غير معروف";
     let hours = date.getHours();
     let minutes = date.getMinutes();
     const ampm = hours >= 12 ? 'م' : 'ص';
@@ -21,63 +22,57 @@ const formatAMPM = (dateStr) => {
 
 service.on('ready', async () => {
     console.log(`✅ تم تسجيل الدخول: ${service.currentSubscriber.nickname}`);
-    console.log(`🔍 فحص الروم: ${TARGET_GROUP} | التاريخ: ${TARGET_DATE}\n`);
+    console.log(`🔍 جاري الفحص...`);
 
     try {
-        // محاولة جلب الفعاليات
+        // نستخدم 'group event list' مع groupId
         const response = await service.websocket.emit('group event list', { 
-            id: parseInt(TARGET_GROUP), // التأكد من أنه رقم
-            subscribe: true // الاشتراك في تحديثات الفعاليات (قد يساعد في الصلاحيات)
+            id: parseInt(TARGET_GROUP),
+            languageId: 1
         });
 
         if (!response.success) {
-            // طباعة تفاصيل الخطأ القادم من السيرفر (مثل Forbidden أو Not Found)
-            console.error("❌ فشل الطلب من السيرفر:");
-            console.error(`كود الخطأ: ${response.code}`);
-            console.error(`الرسالة: ${JSON.stringify(response.body)}`);
-            
-            if(response.code === 403) console.log("💡 نصيحة: البوت يحتاج صلاحيات (Admin) أو أن يكون عضواً في الروم.");
+            console.error("❌ فشل جلب القائمة:", response.body);
             return;
         }
 
         const events = response.body;
 
-        if (!Array.isArray(events)) {
-            console.log("⚠️ استجابة غريبة من السيرفر (ليست قائمة):", events);
-            return;
-        }
-
+        // فلترة الفعاليات مع التأكد من صحة التاريخ لتجنب الـ RangeError
         const filtered = events.filter(event => {
-            const eventDate = new Date(event.startsAt).toISOString().split('T')[0];
-            return eventDate === TARGET_DATE;
+            if (!event.startsAt) return false;
+            
+            const d = new Date(event.startsAt);
+            if (isNaN(d.getTime())) return false; // تجاهل التواريخ الفاسدة
+
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const eventDateStr = `${year}-${month}-${day}`;
+
+            return eventDateStr === TARGET_DATE;
         });
 
         if (filtered.length === 0) {
-            console.log(`📭 لا توجد فعاليات مجدولة ليوم ${TARGET_DATE}`);
+            console.log(`📭 لا توجد فعاليات في تاريخ ${TARGET_DATE}`);
         } else {
-            console.log(`📋 تم العثور على (${filtered.length}) فعاليات:`);
-            console.log("=".repeat(40));
+            console.log(`📋 تم العثور على (${filtered.length}) فعاليات ليوم ${TARGET_DATE}:`);
+            console.log("--------------------------------------");
             
             filtered.forEach((event, index) => {
                 console.log(`${index + 1}- [${event.title}]`);
                 console.log(`   ⏰ الوقت: ${formatAMPM(event.startsAt)}`);
-                console.log(`   🆔 المعرف: ${event.id}`);
-                console.log("-".repeat(20));
+                console.log(`   🆔 المعرف (ID): ${event.id}`);
+                console.log("--------------------------------------");
             });
         }
 
     } catch (err) {
-        console.error("❌ خطأ برمججي مفاجئ:", err);
+        console.error("❌ خطأ غير متوقع:", err.message);
     }
     process.exit();
 });
 
-// تشغيل البوت
-const email = process.env.U_MAIL;
-const pass = process.env.U_PASS;
-
-if (email && pass) {
-    service.login(email, pass);
-} else {
-    console.error("❌ تأكد من إعداد U_MAIL و U_PASS في ملف .env");
-}
+const u = process.env.U_MAIL;
+const p = process.env.U_PASS;
+if (u && p) service.login(u, p);
