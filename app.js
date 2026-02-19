@@ -4,18 +4,22 @@ const { WOLF } = wolfjs;
 
 const service = new WOLF();
 
-// الإعدادات المستخرجة من صورك
+// الإعدادات المستخرجة من الصور
 const TARGET_GROUP = 18432094; 
-const TARGET_DATE = "2026-02-21"; // التاريخ الظاهر في الصورة الثانية
 const TARGET_USER_ID = 80055399; 
 
+// القائمة الكاملة للأسماء لضمان مطابقة الترتيب
 const eventNames = [
     "سوالف وافكار", "تحديات", "ساعة تسلية", "شغّل عقلك", "سوالف ونقاشات", "لعب وطرب", 
-    "خمن الرقم", "سوالف صباحيه", "تحديات خليجنا ذوق", "تحديات ذهنية", "تحدي التخمين"
+    "خمن الرقم", "سوالف صباحيه", "تحديات خليجنا ذوق", "تحديات ذهنية", "تحدي التخمين", 
+    "صباحيات خليجنا ذوق", "تصادمات رقمية", "جيبها بالثانيه", "سوالف والعاب", "تحدي سهم",
+    "فـ الصحيح", "رتب الحروف", "جلسات حوارية", "منوعات", "تحدي كرة", "سوالف خليجنا ذوق",
+    "تحديات منوعة", "تحديات رقمية", "ساعه نقاش", "فقرات منوعة", "أرقام الحظ", "تحدي الزمن",
+    "سوالف ليل", "تحدي الأرقام", "تحديات بوتات", "صناديق الحظ"
 ];
 
 service.on('ready', async () => {
-    console.log(`✅ متصل بـ: ${service.currentSubscriber.nickname}`);
+    console.log(`✅ تم تسجيل الدخول: ${service.currentSubscriber.nickname}`);
     
     try {
         const response = await service.websocket.emit('group event list', { 
@@ -27,47 +31,66 @@ service.on('ready', async () => {
         if (!response.success) return process.exit();
 
         const foundEvents = [];
+        
         for (const ev of response.body) {
-            // التحقق من صاحب الفعالية (Creator ID)
-            if ((ev.subscriberId || ev.creatorId) === TARGET_USER_ID) {
+            // فحص معرف الناشر في أكثر من حقل محتمل
+            const creator = ev.subscriberId || ev.creatorId || (ev.additionalInfo && ev.additionalInfo.creatorId);
+            
+            if (parseInt(creator) === TARGET_USER_ID) {
                 const info = ev.additionalInfo || {};
-                const startTimeStr = info.startsAt || ev.startsAt;
-                const endTimeStr = info.endsAt || ev.endsAt;
-                
-                if (!startTimeStr) continue;
+                const startStr = info.startsAt || ev.startsAt;
+                const endStr = info.endsAt || ev.endsAt;
 
-                const startTime = new Date(startTimeStr);
-                const endTime = new Date(endTimeStr);
-                
-                // تحويل لتوقيت السعودية UTC+3 للمطابقة مع الصورة
-                const ksaStart = new Date(startTime.getTime() + (3 * 60 * 60 * 1000));
-                const dateStr = ksaStart.toISOString().split('T')[0];
+                if (!startStr) continue;
 
-                if (dateStr === TARGET_DATE) {
-                    const duration = Math.round((endTime - startTime) / 60000);
-                    foundEvents.push({ id: ev.id, start: ksaStart, duration });
+                const startDate = new Date(startStr);
+                const endDate = new Date(endStr);
+                
+                // تحويل لتوقيت السعودية UTC+3
+                const ksaDate = new Date(startDate.getTime() + (3 * 60 * 60 * 1000));
+                const day = ksaDate.getUTCDate();
+                const month = ksaDate.getUTCMonth() + 1;
+
+                // البحث في يوم 20 و 21 لضمان جلب فعاليات منتصف الليل
+                if (month === 2 && (day === 20 || day === 21)) {
+                    const duration = Math.round((endDate - startDate) / 60000);
+                    foundEvents.push({ 
+                        id: ev.id, 
+                        start: ksaDate, 
+                        duration,
+                        title: ev.title 
+                    });
                 }
             }
         }
 
-        console.log(`\n📋 فعاليات العضو (80055399) ليوم (21-02-2026):`);
-        console.log("=".repeat(60));
+        console.log(`\n📋 تقرير فعاليات العضو (80055399) - الروم: ${TARGET_GROUP}`);
+        console.log("=".repeat(65));
 
         if (foundEvents.length === 0) {
-            console.log("📭 لم يتم العثور على فعاليات. تأكد من توقيت السيرفر.");
+            console.log("📭 لم يتم العثور على فعاليات لهذا المعرف في السيرفر حالياً.");
         } else {
-            foundEvents.sort((a, b) => a.start - b.start).forEach((ev, i) => {
-                const h = ev.start.getUTCHours();
-                const time = `${h % 12 || 12}:${String(ev.start.getUTCMinutes()).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-                const name = eventNames[i] || "فعالية مجدولة";
+            // ترتيب تصاعدي حسب الوقت
+            foundEvents.sort((a, b) => a.start - b.start);
 
-                console.log(`${(i + 1).toString().padStart(2, '0')}- 【 ${name} 】`);
-                console.log(`   ⏰ وقت البداية: ${time}`);
-                console.log(`   ⏳ مدة الفعالية: ${ev.duration} دقيقة`);
-                console.log(`   🆔 ID الفعالية: ${ev.id}`);
-                console.log("- ".repeat(30));
+            foundEvents.forEach((ev, i) => {
+                const h = ev.start.getUTCHours();
+                const m = String(ev.start.getUTCMinutes()).padStart(2, '0');
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                const time = `${h % 12 || 12}:${m} ${ampm}`;
+                const date = `${ev.start.getUTCDate()}/${ev.start.getUTCMonth() + 1}/2026`;
+                
+                // استخدام الاسم من القائمة بناءً على الترتيب إذا كان العنوان فارغاً
+                const name = (ev.title && ev.title !== "فعالية مجدولة") ? ev.title : (eventNames[i] || "فعالية");
+
+                console.log(`${(i + 1).toString().padStart(2, '0')}- 【 ${name.padEnd(20)} 】`);
+                console.log(`   ⏰ وقت البداية: ${time.padEnd(8)} | 📅 التاريخ: ${date}`);
+                console.log(`   ⏳ مدة الفعالية: ${ev.duration} دقيقة     | 🆔 ID: ${ev.id}`);
+                console.log("- ".repeat(32));
             });
+            console.log(`🏁 الإجمالي المكتشف: ${foundEvents.length} فعالية.`);
         }
+
     } catch (err) {
         console.error("❌ خطأ:", err.message);
     }
