@@ -4,64 +4,62 @@ const { WOLF } = wolfjs;
 
 const service = new WOLF();
 
-// --- الإعدادات ---
-const TARGET_GROUP = 9969; // تم التعديل إلى الروم المطلوب
+// الإعدادات بناءً على الصورة المزودة
+const TARGET_GROUP = 9969; 
 const TARGET_DATE = "2026-02-20"; 
-// ----------------
 
 service.on('ready', async () => {
     console.log(`✅ تم تسجيل الدخول: ${service.currentSubscriber.nickname}`);
-    console.log(`🔍 جاري فحص الروم: ${TARGET_GROUP} ليوم: ${TARGET_DATE}...`);
-
+    
     try {
-        // طلب الفعاليات
+        console.log(`📡 جاري سحب بيانات الـ Line-up للروم: ${TARGET_GROUP}...`);
+        
+        // محاولة جلب الفعاليات بصيغة شاملة
         const response = await service.websocket.emit('group event list', { 
-            groupId: parseInt(TARGET_GROUP),
-            languageId: 1
+            id: parseInt(TARGET_GROUP),
+            languageId: 1,
+            subscribe: true // ضروري جداً لرؤية الفعاليات المجدولة
         });
 
-        if (!response.success || !response.body) {
-            console.log("❌ تعذر جلب الفعاليات. تأكد من وجود البوت في الروم.");
+        if (!response.success) {
+            console.error("❌ فشل السيرفر في الاستجابة:", response.body);
             process.exit();
         }
 
-        const allEvents = response.body;
-
-        // فلترة الفعاليات بناءً على التاريخ
-        const filtered = allEvents.filter(ev => {
+        const events = response.body || [];
+        
+        // تصفية الفعاليات بناءً على يوم 20 فبراير
+        const filtered = events.filter(ev => {
             const d = new Date(ev.startsAt);
-            // استخراج التاريخ بصيغة YYYY-MM-DD
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}` === TARGET_DATE;
+            return d.getFullYear() === 2026 && (d.getMonth() + 1) === 2 && d.getDate() === 20;
         });
 
         if (filtered.length === 0) {
-            console.log(`📭 لا توجد فعاليات مجدولة في الروم (${TARGET_GROUP}) لهذا التاريخ.`);
-            // عرض أقرب فعالية للتأكد من أن السيرفر يستجيب
-            if(allEvents.length > 0) {
-                console.log(`💡 تلميح: وجدنا فعاليات في تواريخ أخرى، مثلاً: ${new Date(allEvents[0].startsAt).toLocaleDateString()}`);
+            console.log(`⚠️ لم يتم العثور على فعاليات لهذا التاريخ برمجياً.`);
+            console.log(`🔎 إجمالي الفعاليات التي رآها البوت في الروم: ${events.length}`);
+            if (events.length > 0) {
+                console.log("إليك أول فعالية مسجلة في قائمة السيرفر:");
+                console.log(`- ${events[0].title} | التاريخ: ${new Date(events[0].startsAt).toLocaleDateString()}`);
             }
         } else {
-            console.log(`✅ تم العثور على (${filtered.length}) فعاليات:\n`);
+            console.log(`✅ تم العثور على (${filtered.length}) فعالية في القائمة:\n`);
             
-            // ترتيب حسب الوقت
+            // ترتيب الفعاليات تصاعدياً حسب الوقت
             filtered.sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
 
             filtered.forEach((ev, i) => {
-                const d = new Date(ev.startsAt);
-                const startTime = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-                const startDate = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+                const startTime = new Date(ev.startsAt).toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    hour12: true 
+                });
                 
-                console.log(`${i + 1}- ${ev.title}`);
-                console.log(`   الوقت: ${startTime}`);
-                console.log(`   التاريخ: ${startDate}`);
-                console.log(`   ID: ${ev.id}`);
-                console.log("-----------------------------------");
+                console.log(`${i + 1}- 【 ${ev.title} 】`);
+                console.log(`   ⏰ الوقت: ${startTime}`);
+                console.log(`   🆔 المعرف (ID): ${ev.id}`);
+                console.log(`-----------------------------------`);
             });
         }
-
     } catch (err) {
         console.error("❌ خطأ:", err.message);
     }
