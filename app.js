@@ -4,7 +4,6 @@ const { WOLF } = wolfjs;
 
 const service = new WOLF();
 
-// الإعدادات بناءً على الصورة المزودة
 const TARGET_GROUP = 9969; 
 const TARGET_DATE = "2026-02-20"; 
 
@@ -12,56 +11,64 @@ service.on('ready', async () => {
     console.log(`✅ تم تسجيل الدخول: ${service.currentSubscriber.nickname}`);
     
     try {
-        console.log(`📡 جاري سحب بيانات الـ Line-up للروم: ${TARGET_GROUP}...`);
+        console.log(`📡 جاري سحب بيانات الـ Line-up لـ ${TARGET_GROUP}...`);
         
-        // محاولة جلب الفعاليات بصيغة شاملة
         const response = await service.websocket.emit('group event list', { 
             id: parseInt(TARGET_GROUP),
             languageId: 1,
-            subscribe: true // ضروري جداً لرؤية الفعاليات المجدولة
+            subscribe: true 
         });
 
-        if (!response.success) {
-            console.error("❌ فشل السيرفر في الاستجابة:", response.body);
+        if (!response.success || !response.body) {
+            console.log("❌ فشل جلب البيانات من السيرفر.");
             process.exit();
         }
 
-        const events = response.body || [];
-        
-        // تصفية الفعاليات بناءً على يوم 20 فبراير
-        const filtered = events.filter(ev => {
-            const d = new Date(ev.startsAt);
-            return d.getFullYear() === 2026 && (d.getMonth() + 1) === 2 && d.getDate() === 20;
-        });
+        const rawEvents = response.body;
+        console.log(`📊 تم العثور على ${rawEvents.length} فعالية إجمالية. جاري التحليل...`);
 
-        if (filtered.length === 0) {
-            console.log(`⚠️ لم يتم العثور على فعاليات لهذا التاريخ برمجياً.`);
-            console.log(`🔎 إجمالي الفعاليات التي رآها البوت في الروم: ${events.length}`);
-            if (events.length > 0) {
-                console.log("إليك أول فعالية مسجلة في قائمة السيرفر:");
-                console.log(`- ${events[0].title} | التاريخ: ${new Date(events[0].startsAt).toLocaleDateString()}`);
-            }
-        } else {
-            console.log(`✅ تم العثور على (${filtered.length}) فعالية في القائمة:\n`);
-            
-            // ترتيب الفعاليات تصاعدياً حسب الوقت
-            filtered.sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+        const foundEvents = [];
 
-            filtered.forEach((ev, i) => {
-                const startTime = new Date(ev.startsAt).toLocaleTimeString('en-US', { 
-                    hour: '2-digit', 
-                    minute: '2-digit', 
-                    hour12: true 
+        for (const ev of rawEvents) {
+            // معالجة البيانات للتأكد من أنها ليست undefined
+            const title = ev.title || ev.name || "بدون اسم";
+            const eventId = ev.id || ev.eventId;
+            const startTime = new Date(ev.startsAt || ev.startAt);
+
+            if (isNaN(startTime.getTime())) continue;
+
+            // تنسيق التاريخ للمقارنة (YYYY-MM-DD)
+            const year = startTime.getFullYear();
+            const month = String(startTime.getMonth() + 1).padStart(2, '0');
+            const day = String(startTime.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+
+            if (dateStr === TARGET_DATE) {
+                foundEvents.push({
+                    id: eventId,
+                    title: title,
+                    time: startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+                    rawDate: startTime
                 });
-                
+            }
+        }
+
+        if (foundEvents.length === 0) {
+            console.log(`📭 لم تطابق أي فعالية تاريخ ${TARGET_DATE}.`);
+            console.log("💡 عينة من أول فعالية وجدها البوت (للتحقق من الصيغة):");
+            console.log(rawEvents[0]); // طباعة الكائن كاملاً لمعرفة أسماء الحقول الصحيحة
+        } else {
+            console.log(`✅ تم العثور على (${foundEvents.length}) فعالية:\n`);
+            
+            foundEvents.sort((a, b) => a.rawDate - b.rawDate).forEach((ev, i) => {
                 console.log(`${i + 1}- 【 ${ev.title} 】`);
-                console.log(`   ⏰ الوقت: ${startTime}`);
-                console.log(`   🆔 المعرف (ID): ${ev.id}`);
+                console.log(`   ⏰ الوقت: ${ev.time}`);
+                console.log(`   🆔 ID: ${ev.id}`);
                 console.log(`-----------------------------------`);
             });
         }
     } catch (err) {
-        console.error("❌ خطأ:", err.message);
+        console.error("❌ خطأ بربمجي:", err.message);
     }
     process.exit();
 });
