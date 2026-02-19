@@ -5,74 +5,67 @@ const { WOLF } = wolfjs;
 const service = new WOLF();
 
 // --- الإعدادات ---
-const TARGET_GROUP = 9969;
+const TARGET_GROUP = 9969; // تم التعديل إلى الروم المطلوب
 const TARGET_DATE = "2026-02-20"; 
 // ----------------
 
-const formatAMPM = (dateInput) => {
-    const date = new Date(dateInput);
-    if (isNaN(date.getTime())) return "وقت غير معروف";
-    let hours = date.getHours();
-    let minutes = date.getMinutes();
-    const ampm = hours >= 12 ? 'م' : 'ص';
-    hours = hours % 12 || 12;
-    minutes = minutes < 10 ? '0' + minutes : minutes;
-    return `${hours}:${minutes} ${ampm}`;
-};
-
 service.on('ready', async () => {
     console.log(`✅ تم تسجيل الدخول: ${service.currentSubscriber.nickname}`);
-    console.log(`🔍 جاري الفحص...`);
+    console.log(`🔍 جاري فحص الروم: ${TARGET_GROUP} ليوم: ${TARGET_DATE}...`);
 
     try {
-        // نستخدم 'group event list' مع groupId
+        // طلب الفعاليات
         const response = await service.websocket.emit('group event list', { 
-            id: parseInt(TARGET_GROUP),
+            groupId: parseInt(TARGET_GROUP),
             languageId: 1
         });
 
-        if (!response.success) {
-            console.error("❌ فشل جلب القائمة:", response.body);
-            return;
+        if (!response.success || !response.body) {
+            console.log("❌ تعذر جلب الفعاليات. تأكد من وجود البوت في الروم.");
+            process.exit();
         }
 
-        const events = response.body;
+        const allEvents = response.body;
 
-        // فلترة الفعاليات مع التأكد من صحة التاريخ لتجنب الـ RangeError
-        const filtered = events.filter(event => {
-            if (!event.startsAt) return false;
-            
-            const d = new Date(event.startsAt);
-            if (isNaN(d.getTime())) return false; // تجاهل التواريخ الفاسدة
-
+        // فلترة الفعاليات بناءً على التاريخ
+        const filtered = allEvents.filter(ev => {
+            const d = new Date(ev.startsAt);
+            // استخراج التاريخ بصيغة YYYY-MM-DD
             const year = d.getFullYear();
             const month = String(d.getMonth() + 1).padStart(2, '0');
             const day = String(d.getDate()).padStart(2, '0');
-            const eventDateStr = `${year}-${month}-${day}`;
-
-            return eventDateStr === TARGET_DATE;
+            return `${year}-${month}-${day}` === TARGET_DATE;
         });
 
         if (filtered.length === 0) {
-            console.log(`📭 لا توجد فعاليات في تاريخ ${TARGET_DATE}`);
+            console.log(`📭 لا توجد فعاليات مجدولة في الروم (${TARGET_GROUP}) لهذا التاريخ.`);
+            // عرض أقرب فعالية للتأكد من أن السيرفر يستجيب
+            if(allEvents.length > 0) {
+                console.log(`💡 تلميح: وجدنا فعاليات في تواريخ أخرى، مثلاً: ${new Date(allEvents[0].startsAt).toLocaleDateString()}`);
+            }
         } else {
-            console.log(`📋 تم العثور على (${filtered.length}) فعاليات ليوم ${TARGET_DATE}:`);
-            console.log("--------------------------------------");
+            console.log(`✅ تم العثور على (${filtered.length}) فعاليات:\n`);
             
-            filtered.forEach((event, index) => {
-                console.log(`${index + 1}- [${event.title}]`);
-                console.log(`   ⏰ الوقت: ${formatAMPM(event.startsAt)}`);
-                console.log(`   🆔 المعرف (ID): ${event.id}`);
-                console.log("--------------------------------------");
+            // ترتيب حسب الوقت
+            filtered.sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+
+            filtered.forEach((ev, i) => {
+                const d = new Date(ev.startsAt);
+                const startTime = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                const startDate = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+                
+                console.log(`${i + 1}- ${ev.title}`);
+                console.log(`   الوقت: ${startTime}`);
+                console.log(`   التاريخ: ${startDate}`);
+                console.log(`   ID: ${ev.id}`);
+                console.log("-----------------------------------");
             });
         }
 
     } catch (err) {
-        console.error("❌ خطأ غير متوقع:", err.message);
+        console.error("❌ خطأ:", err.message);
     }
     process.exit();
 });
 
-const u = process.env.U_MAIL;
-const p = process.env.U_PASS;
-if (u && p) service.login(u, p);
+service.login(process.env.U_MAIL, process.env.U_PASS);
