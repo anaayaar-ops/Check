@@ -6,7 +6,7 @@ const service = new WOLF();
 
 // --- الإعدادات ---
 const TARGET_GROUP = 18432094;
-const TARGET_DATE = "2026-02-20"; // التاريخ المراد فحصه بصيغة YYYY-MM-DD
+const TARGET_DATE = "2026-02-20"; 
 // ----------------
 
 const formatAMPM = (dateStr) => {
@@ -21,50 +21,63 @@ const formatAMPM = (dateStr) => {
 
 service.on('ready', async () => {
     console.log(`✅ تم تسجيل الدخول: ${service.currentSubscriber.nickname}`);
-    console.log(`🔍 جاري فحص الفعاليات للتاريخ: ${TARGET_DATE} في الروم: ${TARGET_GROUP}\n`);
+    console.log(`🔍 فحص الروم: ${TARGET_GROUP} | التاريخ: ${TARGET_DATE}\n`);
 
     try {
-        // طلب قائمة الفعاليات من السيرفر
+        // محاولة جلب الفعاليات
         const response = await service.websocket.emit('group event list', { 
-            groupId: TARGET_GROUP, 
-            languageId: 1 
+            id: parseInt(TARGET_GROUP), // التأكد من أنه رقم
+            subscribe: true // الاشتراك في تحديثات الفعاليات (قد يساعد في الصلاحيات)
         });
 
         if (!response.success) {
-            throw new Error("فشل في جلب قائمة الفعاليات");
+            // طباعة تفاصيل الخطأ القادم من السيرفر (مثل Forbidden أو Not Found)
+            console.error("❌ فشل الطلب من السيرفر:");
+            console.error(`كود الخطأ: ${response.code}`);
+            console.error(`الرسالة: ${JSON.stringify(response.body)}`);
+            
+            if(response.code === 403) console.log("💡 نصيحة: البوت يحتاج صلاحيات (Admin) أو أن يكون عضواً في الروم.");
+            return;
         }
 
         const events = response.body;
-        
-        // تصفية الفعاليات بناءً على التاريخ المحدد
-        const filteredEvents = events.filter(event => {
+
+        if (!Array.isArray(events)) {
+            console.log("⚠️ استجابة غريبة من السيرفر (ليست قائمة):", events);
+            return;
+        }
+
+        const filtered = events.filter(event => {
             const eventDate = new Date(event.startsAt).toISOString().split('T')[0];
             return eventDate === TARGET_DATE;
         });
 
-        if (filteredEvents.length === 0) {
-            console.log("⚠️ لا توجد فعاليات مجدولة لهذا التاريخ.");
+        if (filtered.length === 0) {
+            console.log(`📭 لا توجد فعاليات مجدولة ليوم ${TARGET_DATE}`);
         } else {
-            console.log(`📋 تم العثور على (${filteredEvents.length}) فعاليات:\n`);
-            console.log("--------------------------------------------------");
+            console.log(`📋 تم العثور على (${filtered.length}) فعاليات:`);
+            console.log("=".repeat(40));
             
-            filteredEvents.forEach((event, index) => {
-                const startTime = formatAMPM(event.startsAt);
-                const eventDate = new Date(event.startsAt).toLocaleDateString('en-GB'); // DD/MM/YYYY
-                
-                console.log(`${index + 1}- الاسم: ${event.title}`);
-                console.log(`   الوقت: ${startTime}`);
-                console.log(`   التاريخ: ${eventDate}`);
-                console.log(`   ID: ${event.id}`);
-                console.log("--------------------------------------------------");
+            filtered.forEach((event, index) => {
+                console.log(`${index + 1}- [${event.title}]`);
+                console.log(`   ⏰ الوقت: ${formatAMPM(event.startsAt)}`);
+                console.log(`   🆔 المعرف: ${event.id}`);
+                console.log("-".repeat(20));
             });
         }
 
     } catch (err) {
-        console.error("❌ خطأ أثناء الفحص:", err.message);
+        console.error("❌ خطأ برمججي مفاجئ:", err);
     }
-    
     process.exit();
 });
 
-service.login(process.env.U_MAIL, process.env.U_PASS);
+// تشغيل البوت
+const email = process.env.U_MAIL;
+const pass = process.env.U_PASS;
+
+if (email && pass) {
+    service.login(email, pass);
+} else {
+    console.error("❌ تأكد من إعداد U_MAIL و U_PASS في ملف .env");
+}
