@@ -4,8 +4,11 @@ const { WOLF } = wolfjs;
 
 const service = new WOLF();
 
+// --- الإعدادات ---
 const TARGET_GROUP = 18432094; 
 const TARGET_DATE = "2026-02-21"; 
+const TARGET_USER_ID = 80055399; // معرف المستخدم المطلوب تصفية فعالياته
+// ----------------
 
 const eventNames = [
     "سوالف وافكار", "تحديات", "ساعة تسلية", "شغّل عقلك", "سوالف ونقاشات", "لعب وطرب", 
@@ -37,6 +40,9 @@ service.on('ready', async () => {
 
         const foundEvents = [];
         for (const ev of response.body) {
+            // إضافة شرط الفلترة حسب الـ Creator ID
+            if (ev.creatorId !== TARGET_USER_ID) continue;
+
             const info = ev.additionalInfo || {};
             const startTimeStr = info.startsAt || ev.startsAt;
             const endTimeStr = info.endsAt || ev.endsAt;
@@ -52,7 +58,6 @@ service.on('ready', async () => {
             const dateStr = `${ksaStart.getUTCFullYear()}-${String(ksaStart.getUTCMonth() + 1).padStart(2, '0')}-${String(ksaStart.getUTCDate()).padStart(2, '0')}`;
 
             if (dateStr === TARGET_DATE) {
-                // حساب الفرق بين النهاية والبداية بالدقائق
                 const durationMs = endTime.getTime() - startTime.getTime();
                 const durationMinutes = Math.round(durationMs / (1000 * 60));
 
@@ -66,20 +71,22 @@ service.on('ready', async () => {
 
         foundEvents.sort((a, b) => a.start - b.start);
 
-        console.log(`\n📋 جدول فعاليات يوم (${TARGET_DATE}) مع حساب المدة:`);
+        console.log(`\n📋 فعاليات المستخدم (${TARGET_USER_ID}) ليوم (${TARGET_DATE}):`);
         console.log("=".repeat(60));
 
-        foundEvents.forEach((ev, i) => {
-            const name = eventNames[i] || "فعالية إضافية";
+        if (foundEvents.length === 0) {
+            console.log("📭 لم يتم العثور على فعاليات لهذا المستخدم في التاريخ المحدد.");
+        } else {
+            foundEvents.forEach((ev, i) => {
+                const name = eventNames[i] || "فعالية إضافية";
 
-            console.log(`${(i + 1).toString().padStart(2, '0')}- 【 ${name.padEnd(20)} 】`);
-            console.log(`   ⏰ وقت البداية: ${formatTime(ev.start)}`);
-            console.log(`   ⏳ مدة الفعالية: ${ev.duration} دقيقة`);
-            console.log(`   🆔 ID: ${ev.id}`);
-            console.log("- ".repeat(30));
-        });
-
-        console.log(`🏁 إجمالي الفعاليات: ${foundEvents.length}`);
+                console.log(`${(i + 1).toString().padStart(2, '0')}- 【 ${name.padEnd(20)} 】`);
+                console.log(`   ⏰ وقت البداية: ${formatTime(ev.start)}`);
+                console.log(`   ⏳ مدة الفعالية: ${ev.duration} دقيقة`);
+                console.log(`   🆔 ID: ${ev.id}`);
+                console.log("- ".repeat(30));
+            });
+        }
 
     } catch (err) {
         console.error("❌ خطأ:", err.message);
