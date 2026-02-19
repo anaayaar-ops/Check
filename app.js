@@ -7,7 +7,6 @@ const service = new WOLF();
 const TARGET_GROUP = 18432094; 
 const TARGET_DATE = "2026-02-21"; 
 
-// القائمة الأصلية للأسماء
 const eventNames = [
     "سوالف وافكار", "تحديات", "ساعة تسلية", "شغّل عقلك", "سوالف ونقاشات", "لعب وطرب", 
     "خمن الرقم", "سوالف صباحيه", "تحديات خليجنا ذوق", "تحديات ذهنية", "تحدي التخمين", 
@@ -40,42 +39,47 @@ service.on('ready', async () => {
         for (const ev of response.body) {
             const info = ev.additionalInfo || {};
             const startTimeStr = info.startsAt || ev.startsAt;
-            if (!startTimeStr) continue;
+            const endTimeStr = info.endsAt || ev.endsAt;
+            
+            if (!startTimeStr || !endTimeStr) continue;
 
             const startTime = new Date(startTimeStr);
+            const endTime = new Date(endTimeStr);
+            
             // توقيت السعودية UTC+3
             const ksaStart = new Date(startTime.getTime() + (3 * 60 * 60 * 1000));
             
             const dateStr = `${ksaStart.getUTCFullYear()}-${String(ksaStart.getUTCMonth() + 1).padStart(2, '0')}-${String(ksaStart.getUTCDate()).padStart(2, '0')}`;
 
             if (dateStr === TARGET_DATE) {
-                // حساب وقت النهاية (إضافة 45 دقيقة)
-                const ksaEnd = new Date(ksaStart.getTime() + (45 * 60 * 1000));
-                
+                // حساب الفرق بين النهاية والبداية بالدقائق
+                const durationMs = endTime.getTime() - startTime.getTime();
+                const durationMinutes = Math.round(durationMs / (1000 * 60));
+
                 foundEvents.push({ 
                     id: ev.id, 
                     start: ksaStart,
-                    end: ksaEnd 
+                    duration: durationMinutes
                 });
             }
         }
 
         foundEvents.sort((a, b) => a.start - b.start);
 
-        console.log(`\n📋 جدول فعاليات يوم (${TARGET_DATE}) - مدة كل فقرة 45 دقيقة:`);
+        console.log(`\n📋 جدول فعاليات يوم (${TARGET_DATE}) مع حساب المدة:`);
         console.log("=".repeat(60));
 
         foundEvents.forEach((ev, i) => {
             const name = eventNames[i] || "فعالية إضافية";
-            const timeRange = `${formatTime(ev.start)} ⮕  ${formatTime(ev.end)}`;
 
             console.log(`${(i + 1).toString().padStart(2, '0')}- 【 ${name.padEnd(20)} 】`);
-            console.log(`   ⏰ الفترة: ${timeRange}`);
+            console.log(`   ⏰ وقت البداية: ${formatTime(ev.start)}`);
+            console.log(`   ⏳ مدة الفعالية: ${ev.duration} دقيقة`);
             console.log(`   🆔 ID: ${ev.id}`);
             console.log("- ".repeat(30));
         });
 
-        console.log(`🏁 إجمالي الفعاليات المعروضة: ${foundEvents.length}`);
+        console.log(`🏁 إجمالي الفعاليات: ${foundEvents.length}`);
 
     } catch (err) {
         console.error("❌ خطأ:", err.message);
