@@ -1,19 +1,28 @@
 name: Run Wolf Bot
 
 on:
-  workflow_dispatch: # يتيح لك تشغيل البوت يدوياً بضغطة زر
+  workflow_dispatch: # تشغيل يدوي
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm install
+          cache: 'npm' # لتسريع التشغيل في المرات القادمة
+
+      - name: Install Dependencies
+        # الحل السحري هنا: تجاهل المكتبات الاختيارية وعمليات البناء المعقدة
+        run: npm install --no-optional --ignore-scripts
+
       - name: Run Bot
         env:
           U_MAIL: ${{ secrets.U_MAIL }}
           U_PASS: ${{ secrets.U_PASS }}
-        run: node app.js
+        # تأكد أن اسم ملف البوت هو index.js أو app.js كما في مستودعك
+        run: node index.js 
