@@ -1,16 +1,13 @@
 {
-  "name": "internal-process-manager",
+  "name": "check",
   "version": "1.0.0",
-  "type": "module",
-  "description": "General purpose automation script",
-  "main": "app.js",
+  "type": "module", 
+  "dependencies": {
+    "wolf.js": "^1.0.0",
+    "express": "^4.18.2",
+    "dotenv": "^16.0.0"
+  },
   "scripts": {
     "start": "node app.js"
-  },
-  "dependencies": {
-    "axios": "^1.13.5",
-    "dotenv": "^16.6.1",
-    "sharp": "^0.34.5",
-    "wolf.js": "^2.7.10"
   }
 }
