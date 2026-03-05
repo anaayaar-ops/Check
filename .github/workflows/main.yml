@@ -1,28 +1,24 @@
-name: Run Wolf Bot
-
+name: Check Events
 on:
-  workflow_dispatch: # تشغيل يدوي
+  workflow_dispatch:
 
 jobs:
-  build:
+  run-bot:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v3
         with:
           node-version: '20'
-          cache: 'npm' # لتسريع التشغيل في المرات القادمة
 
       - name: Install Dependencies
-        # الحل السحري هنا: تجاهل المكتبات الاختيارية وعمليات البناء المعقدة
-        run: npm install --no-optional --ignore-scripts
+        run: npm install
 
-      - name: Run Bot
+      - name: Run Scanner
         env:
           U_MAIL: ${{ secrets.U_MAIL }}
           U_PASS: ${{ secrets.U_PASS }}
-        # تأكد أن اسم ملف البوت هو index.js أو app.js كما في مستودعك
-        run: node app.js 
+        run: node app.js
