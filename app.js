@@ -1,59 +1,62 @@
 import 'dotenv/config';
 import wolfjs from 'wolf.js';
-import express from 'express'; // أضف هذه المكتبة
+import express from 'express';
 const { WOLF } = wolfjs;
 
 const app = express();
 const service = new WOLF();
 
-const eventNames = ["سوالف وافكار", "تحديات", "ساعة تسلية", "شغّل عقلك", /* ... باقي القائمة ... */];
-
-// دالة لمعالجة الوقت
-const formatTimeData = (date) => {
+// دالة لمعالجة الوقت بتوقيت السعودية
+const processTime = (dateStr) => {
+    const date = new Date(dateStr);
     const ksaDate = new Date(date.getTime() + (3 * 60 * 60 * 1000));
     return {
         hour: ksaDate.getUTCHours().toString(),
-        minute: String(ksaDate.getUTCMinutes()).padStart(2, '0')
+        minute: String(ksaDate.getUTCMinutes()).padStart(2, '0'),
+        fullKsa: ksaDate.toISOString().split('T')[0]
     };
 };
 
-app.get('/get-events', async (req, res) => {
-    const targetGroup = req.query.room; // استلام رقم الروم من التطبيق
-    const targetDate = req.query.date; // استلام التاريخ من التطبيق
+app.get('/events', async (req, res) => {
+    const { room, date } = req.query; // استلام رقم الروم والتاريخ من التطبيق
 
     try {
         const response = await service.websocket.emit('group event list', { 
-            id: parseInt(targetGroup),
+            id: parseInt(room),
             languageId: 1,
             subscribe: true 
         });
 
-        if (!response.success) return res.status(400).json({ error: "Failed to fetch" });
+        if (!response.success) return res.status(400).json({ error: "فشل جلب البيانات من WOLF" });
 
-        const results = [];
-        response.body.forEach((ev) => {
-            const startTime = new Date(ev.startsAt);
-            const ksaDate = new Date(startTime.getTime() + (3 * 60 * 60 * 1000));
-            const dateStr = ksaDate.toISOString().split('T')[0];
+        const foundEvents = [];
+        for (const ev of response.body) {
+            const timeInfo = processTime(ev.startsAt);
 
-            if (dateStr === targetDate) {
-                const timeData = formatTimeData(startTime);
-                results.add({
-                    id: ev.id.toString(),
-                    hour: timeData.hour,
-                    minute: timeData.minute
+            // التحقق إذا كانت الفعالية في التاريخ المطلوب
+            if (timeInfo.fullKsa === date) {
+                foundEvents.push({ 
+                    id: ev.id.toString(), 
+                    name: ev.title || "فعالية بدون عنوان", // سحب العنوان الحقيقي من القناة
+                    hour: timeInfo.hour,
+                    minute: timeInfo.minute
                 });
             }
-        });
+        }
 
-        res.json(results); // إرسال النتائج لتطبيق Flutter
+        // ترتيب الفعاليات حسب الوقت
+        foundEvents.sort((a, b) => parseInt(a.hour) - parseInt(b.hour));
+        
+        console.log(`✅ تم إرسال ${foundEvents.length} فعالية للروم ${room}`);
+        res.json(foundEvents);
+
     } catch (err) {
-        res.status(500).send(err.message);
+        res.status(500).json({ error: err.message });
     }
 });
 
 service.on('ready', () => {
-    console.log(`✅ البوت جاهز والـ API يعمل على منفذ 3000`);
+    console.log(`🚀 البوت متصل والـ API جاهز على المنفذ 3000`);
     app.listen(3000);
 });
 
