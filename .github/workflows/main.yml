@@ -25,4 +25,4 @@ jobs:
           U_MAIL: ${{ secrets.U_MAIL }}
           U_PASS: ${{ secrets.U_PASS }}
         # تأكد أن اسم ملف البوت هو index.js أو app.js كما في مستودعك
-        run: node index.js 
+        run: node app.js 
