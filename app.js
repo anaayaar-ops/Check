@@ -4,7 +4,7 @@ const { WOLF } = wolfjs;
 
 const service = new WOLF();
 
-const TARGET_GROUP = 9969; 
+const TARGET_GROUP = 18432094; 
 const TARGET_DATE = "2026-03-08"; 
 
 const eventNames = [
@@ -88,3 +88,4 @@ service.on('ready', async () => {
 });
 
 service.login(process.env.U_MAIL, process.env.U_PASS);
+
