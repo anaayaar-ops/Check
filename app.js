@@ -5,7 +5,7 @@ const { WOLF } = wolfjs;
 const service = new WOLF();
 
 const TARGET_GROUP = 9969; 
-const TARGET_DATE = "2026-03-8"; 
+const TARGET_DATE = "2026-03-08"; 
 
 const eventNames = [
     "سوالف وافكار", "تحديات", "ساعة تسلية", "شغّل عقلك", "سوالف ونقاشات", "لعب وطرب", 
@@ -88,4 +88,3 @@ service.on('ready', async () => {
 });
 
 service.login(process.env.U_MAIL, process.env.U_PASS);
-
