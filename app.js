@@ -1,90 +1,60 @@
 import 'dotenv/config';
 import wolfjs from 'wolf.js';
+import express from 'express'; // أضف هذه المكتبة
 const { WOLF } = wolfjs;
 
+const app = express();
 const service = new WOLF();
 
-const TARGET_GROUP = 18432094; 
-const TARGET_DATE = "2026-02-21"; 
+const eventNames = ["سوالف وافكار", "تحديات", "ساعة تسلية", "شغّل عقلك", /* ... باقي القائمة ... */];
 
-const eventNames = [
-    "سوالف وافكار", "تحديات", "ساعة تسلية", "شغّل عقلك", "سوالف ونقاشات", "لعب وطرب", 
-    "خمن الرقم", "سوالف صباحيه", "تحديات خليجنا ذوق", "تحديات ذهنية", "تحدي التخمين", 
-    "صباحيات خليجنا ذوق", "تصادمات رقمية", "جيبها بالثانيه", "سوالف والعاب", "تحدي سهم",
-    "فـ الصحيح", "رتب الحروف", "جلسات حوارية", "منوعات", "تحدي كرة", "سوالف خليجنا ذوق",
-    "تحديات منوعة", "تحديات رقمية", "ساعه نقاش", "فقرات منوعة", "أرقام الحظ", "تحدي الزمن",
-    "سوالف ليل", "تحدي الأرقام", "تحديات بوتات", "صناديق الحظ"
-];
-
-const formatTime = (date) => {
-    const h = date.getUTCHours();
-    const m = String(date.getUTCMinutes()).padStart(2, '0');
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    return `${h % 12 || 12}:${m} ${ampm}`;
+// دالة لمعالجة الوقت
+const formatTimeData = (date) => {
+    const ksaDate = new Date(date.getTime() + (3 * 60 * 60 * 1000));
+    return {
+        hour: ksaDate.getUTCHours().toString(),
+        minute: String(ksaDate.getUTCMinutes()).padStart(2, '0')
+    };
 };
 
-service.on('ready', async () => {
-    console.log(`✅ متصل بـ: ${service.currentSubscriber.nickname}`);
-    
+app.get('/get-events', async (req, res) => {
+    const targetGroup = req.query.room; // استلام رقم الروم من التطبيق
+    const targetDate = req.query.date; // استلام التاريخ من التطبيق
+
     try {
         const response = await service.websocket.emit('group event list', { 
-            id: parseInt(TARGET_GROUP),
+            id: parseInt(targetGroup),
             languageId: 1,
             subscribe: true 
         });
 
-        if (!response.success) return process.exit();
+        if (!response.success) return res.status(400).json({ error: "Failed to fetch" });
 
-        const foundEvents = [];
-        for (const ev of response.body) {
-            const info = ev.additionalInfo || {};
-            const startTimeStr = info.startsAt || ev.startsAt;
-            const endTimeStr = info.endsAt || ev.endsAt;
-            
-            if (!startTimeStr || !endTimeStr) continue;
+        const results = [];
+        response.body.forEach((ev) => {
+            const startTime = new Date(ev.startsAt);
+            const ksaDate = new Date(startTime.getTime() + (3 * 60 * 60 * 1000));
+            const dateStr = ksaDate.toISOString().split('T')[0];
 
-            const startTime = new Date(startTimeStr);
-            const endTime = new Date(endTimeStr);
-            
-            // توقيت السعودية UTC+3
-            const ksaStart = new Date(startTime.getTime() + (3 * 60 * 60 * 1000));
-            
-            const dateStr = `${ksaStart.getUTCFullYear()}-${String(ksaStart.getUTCMonth() + 1).padStart(2, '0')}-${String(ksaStart.getUTCDate()).padStart(2, '0')}`;
-
-            if (dateStr === TARGET_DATE) {
-                // حساب الفرق بين النهاية والبداية بالدقائق
-                const durationMs = endTime.getTime() - startTime.getTime();
-                const durationMinutes = Math.round(durationMs / (1000 * 60));
-
-                foundEvents.push({ 
-                    id: ev.id, 
-                    start: ksaStart,
-                    duration: durationMinutes
+            if (dateStr === targetDate) {
+                const timeData = formatTimeData(startTime);
+                results.add({
+                    id: ev.id.toString(),
+                    hour: timeData.hour,
+                    minute: timeData.minute
                 });
             }
-        }
-
-        foundEvents.sort((a, b) => a.start - b.start);
-
-        console.log(`\n📋 جدول فعاليات يوم (${TARGET_DATE}) مع حساب المدة:`);
-        console.log("=".repeat(60));
-
-        foundEvents.forEach((ev, i) => {
-            const name = eventNames[i] || "فعالية إضافية";
-
-            console.log(`${(i + 1).toString().padStart(2, '0')}- 【 ${name.padEnd(20)} 】`);
-            console.log(`   ⏰ وقت البداية: ${formatTime(ev.start)}`);
-            console.log(`   ⏳ مدة الفعالية: ${ev.duration} دقيقة`);
-            console.log(`   🆔 ID: ${ev.id}`);
-            console.log("- ".repeat(30));
         });
 
-        console.log(`🏁 إجمالي الفعاليات: ${foundEvents.length}`);
-
+        res.json(results); // إرسال النتائج لتطبيق Flutter
     } catch (err) {
-        console.error("❌ خطأ:", err.message);
+        res.status(500).send(err.message);
     }
-    process.exit();
+});
+
+service.on('ready', () => {
+    console.log(`✅ البوت جاهز والـ API يعمل على منفذ 3000`);
+    app.listen(3000);
 });
 
 service.login(process.env.U_MAIL, process.env.U_PASS);
