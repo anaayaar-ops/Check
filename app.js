@@ -19,7 +19,7 @@ service.on('ready', async () => {
     console.log(`✅ متصل بـ: ${service.currentSubscriber.nickname}`);
 
     try {
-        // 1) جلب القائمة المختصرة لتحديد أي الفعاليات ضمن اليوم المستهدف
+        // 1) جلب القائمة المختصرة لتحديد الفعاليات ضمن اليوم المستهدف
         const listResponse = await service.websocket.emit('group event list', {
             id: parseInt(TARGET_GROUP),
             languageId: 1,
@@ -46,9 +46,7 @@ service.on('ready', async () => {
             dayEventIds.push({ id: ev.id, dateStr, start: ksaStart });
         }
 
-        console.log(`ℹ️ عدد فعاليات ${TARGET_DATE}: ${dayEventIds.length} — جاري جلب التفاصيل الكاملة لكل واحدة...`);
-
-        // 2) جلب تفاصيل كل فعالية (تحتوي createdBy / hostedBy الحقيقيين)
+        // 2) جلب تفاصيل كل فعالية للحصول على createdBy الحقيقي
         const fullEvents = await service.event.getByIds(dayEventIds.map(e => e.id), true);
 
         const foundEvents = [];
@@ -57,16 +55,11 @@ service.on('ready', async () => {
             const meta = dayEventIds.find(e => e.id === fullEv.id);
             if (!meta) return;
 
-            const creatorId = fullEv.createdBy ?? fullEv.hostedBy ?? null;
-
-            if (creatorId !== null && parseInt(creatorId) === TARGET_MEMBER_ID) {
+            if (fullEv.createdBy !== null && parseInt(fullEv.createdBy) === TARGET_MEMBER_ID) {
                 foundEvents.push({
                     id: fullEv.id,
-                    title: fullEv.title,
                     dateStr: meta.dateStr,
-                    start: meta.start,
-                    createdBy: fullEv.createdBy,
-                    hostedBy: fullEv.hostedBy
+                    start: meta.start
                 });
             }
         });
@@ -78,20 +71,12 @@ service.on('ready', async () => {
 
         foundEvents.forEach((ev, i) => {
             console.log(`${(i + 1).toString().padStart(2, '0')}- 🆔 ID: ${ev.id}`);
-            console.log(`   📝 العنوان: ${ev.title || '(بدون عنوان)'}`);
             console.log(`   📅 التاريخ: ${ev.dateStr}`);
             console.log(`   ⏰ الوقت: ${formatTime(ev.start)}`);
-            console.log(`   👤 createdBy: ${ev.createdBy} | hostedBy: ${ev.hostedBy}`);
             console.log("-".repeat(40));
         });
 
         console.log(`🏁 إجمالي الفعاليات: ${foundEvents.length}`);
-
-        // تشخيص إضافي: لو حاب تشوف كل الفعاليات بأصحابها بغض النظر عن TARGET_MEMBER_ID
-        console.log(`\n🔍 (تشخيص) كل فعاليات اليوم مع منشئيها:`);
-        fullEvents.forEach((fullEv) => {
-            console.log(`  ID ${fullEv.id} → createdBy: ${fullEv.createdBy}, hostedBy: ${fullEv.hostedBy}, title: ${fullEv.title}`);
-        });
 
     } catch (err) {
         console.error("❌ خطأ:", err.message);
