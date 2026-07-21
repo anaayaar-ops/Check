@@ -1,37 +1,40 @@
-import 'dotenv/config';
-import wolfjs from 'wolf.js';
-const { WOLF } = wolfjs;
+// diagnose.js
+import fs from 'fs';
+import path from 'path';
 
-const service = new WOLF();
-const TARGET_GROUP = 18432094;
+const searchDir = 'node_modules/wolf.js';
+const results = [];
 
-service.on('ready', async () => {
-    console.log(`✅ متصل بـ: ${service.currentSubscriber.nickname}`);
-
-    // جرّب عدة أسماء أوامر محتملة لجلب تفاصيل فعالية مفردة
-    const eventId = 862096; // خذ أي id ظهر عندك سابقًا
-
-    const attempts = [
-        { name: 'group event', body: { id: eventId, languageId: 1 } },
-        { name: 'group event', body: { eventId, languageId: 1 } },
-        { name: 'group event get', body: { id: eventId, languageId: 1 } },
-        { name: 'group audit log', body: { id: TARGET_GROUP, languageId: 1 } },
-        { name: 'group audit', body: { id: TARGET_GROUP, languageId: 1 } },
-    ];
-
-    for (const attempt of attempts) {
-        try {
-            const res = await service.websocket.emit(attempt.name, attempt.body);
-            console.log(`\n--- Command: "${attempt.name}" body: ${JSON.stringify(attempt.body)} ---`);
-            console.log("success:", res.success, "code:", res.code);
-            console.log(JSON.stringify(res.body, null, 2)?.slice(0, 1000));
-        } catch (e) {
-            console.log(`\n--- Command: "${attempt.name}" threw error ---`);
-            console.log(e.message);
+function walk(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            if (entry.name === 'node_modules') continue; // تجاهل التبعيات الفرعية
+            walk(fullPath);
+        } else if (entry.name.endsWith('.js') || entry.name.endsWith('.d.ts')) {
+            const content = fs.readFileSync(fullPath, 'utf8');
+            if (/event/i.test(entry.name) || /group event|audit/i.test(content)) {
+                results.push(fullPath);
+            }
         }
     }
+}
 
-    process.exit();
-});
+walk(searchDir);
 
-service.login(process.env.U_MAIL, process.env.U_PASS);
+console.log(`📂 ملفات محتملة الصلة (${results.length}):`);
+results.forEach(f => console.log('  -', f));
+
+console.log('\n🔎 البحث عن أوامر websocket المتعلقة بـ event / audit:\n');
+
+for (const file of results) {
+    const content = fs.readFileSync(file, 'utf8');
+    const lines = content.split('\n');
+    lines.forEach((line, i) => {
+        if (/['"`](group\s?(event|audit)[a-zA-Z\s]*)['"`]/i.test(line)) {
+            console.log(`${file}:${i + 1}`);
+            console.log(`  ${line.trim()}`);
+        }
+    });
+}
